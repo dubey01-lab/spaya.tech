@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { storage } from '../lib/storage';
+import { sendEmail } from '../lib/email';
 
 interface Props {
   onComplete: () => void;
@@ -15,26 +16,38 @@ export default function FirstVisitLogin({ onComplete }: Props) {
     businessType: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMsg('');
     
-    // Save to local storage
-    storage.saveLead({
-      ...formData,
-      source: 'First Visit Panel'
-    });
-    storage.setVisited();
+    try {
+      await sendEmail({
+        source: 'First Visit Panel Registration',
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        city: formData.city,
+        business: formData.businessType,
+        message: 'New user registered via First Visit Panel.'
+      });
+      
+      // Save locally only on success
+      storage.saveLead({
+        ...formData,
+        source: 'First Visit Panel'
+      });
+      storage.setVisited();
 
-    // Simulate EmailJS or actual fetch logic delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Optionally trigger an email mailto or true API call here if integrated.
-    console.log("Sending simulated email to sivanshdubey69@gmail.com with:", formData);
-
-    setIsSubmitting(false);
-    onComplete();
+      setIsSubmitting(false);
+      onComplete();
+    } catch (e) {
+      console.error('Failed to send email:', e);
+      setErrorMsg('Failed to complete registration. Please check your configuration or try again.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -61,6 +74,7 @@ export default function FirstVisitLogin({ onComplete }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
+          {errorMsg && <div className="p-3 bg-red-500/20 border border-red-500/50 text-red-200 text-sm rounded-xl text-center">{errorMsg}</div>}
           <div>
             <input 
               required

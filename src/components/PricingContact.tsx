@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, Mail, Phone, MapPin, QrCode, X } from 'lucide-react';
 import { storage, companyPhone, whatsappLink } from '../lib/storage';
+import { sendEmail } from '../lib/email';
 
 const plans = [
   {
@@ -36,21 +37,35 @@ export default function PricingContact() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', business: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMsg('');
     
-    storage.saveLead({ ...formData, source: 'Contact Form' });
-    
-    // Simulate EmailJS
-    console.log("simulating emailjs send to sivanshdubey69@gmail.com", formData);
-    await new Promise(r => setTimeout(r, 1500));
-    
-    setIsSubmitting(false);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 5000);
-    setFormData({ name: '', email: '', phone: '', business: '', message: '' });
+    try {
+      await sendEmail({
+        source: 'Pricing/Contact Form',
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        business: formData.business,
+        message: formData.message,
+        city: 'Not provided'
+      });
+      
+      storage.saveLead({ ...formData, source: 'Contact Form' });
+      
+      setIsSubmitting(false);
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 5000);
+      setFormData({ name: '', email: '', phone: '', business: '', message: '' });
+    } catch (e) {
+      console.error('Failed to send email:', e);
+      setErrorMsg('Failed to send message. Please check your configuration or try again.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -159,6 +174,7 @@ export default function PricingContact() {
                 </motion.div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {errorMsg && <div className="p-4 bg-red-500/20 border border-red-500/50 text-red-200 rounded-xl text-sm">{errorMsg}</div>}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input required type="text" placeholder="Your Name" className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#6366f1]" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                     <input required type="email" placeholder="Email Address" className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#6366f1]" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />

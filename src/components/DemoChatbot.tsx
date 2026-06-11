@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, User, Bot, X } from 'lucide-react';
 import { storage } from '../lib/storage';
+import { sendEmail } from '../lib/email';
 
 interface Message {
   id: string;
@@ -66,23 +67,42 @@ export default function DemoChatbot({ type, title, initialMessage, options, colo
     }
   };
 
-  const handleFormSubmit = (e: React.FormEvent, formType: string) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFormSubmit = async (e: React.FormEvent, formType: string) => {
     e.preventDefault();
-    setMessages(prev => prev.map(m => m.isForm ? { ...m, isForm: false, text: m.text + ' (Details Submitted)' } : m));
+    setIsSubmitting(true);
     
-    // Save to local storage representing a sent lead
-    storage.saveChatRequest({
-      botType: type,
-      userName: formData.name,
-      userPhone: formData.phone,
-      requestType: formType,
-      details: formData.extra || 'N/A'
-    });
+    try {
+      await sendEmail({
+        source: `Chatbot Request: ${type} - ${formType}`,
+        name: formData.name,
+        email: 'Not provided',
+        phone: formData.phone,
+        business: type,
+        city: 'Not provided',
+        message: `Chatbot lead captured: ${formData.extra || 'N/A'}`
+      });
 
-    // Simulate Email Trigger
-    console.log(`Sending email to sivanshdubey69@gmail.com. New Chatbot Request: [${type}] from ${formData.name}`);
+      // Save to local storage representing a sent lead only on success
+      storage.saveChatRequest({
+        botType: type,
+        userName: formData.name,
+        userPhone: formData.phone,
+        requestType: formType,
+        details: formData.extra || 'N/A'
+      });
 
-    addBotMessage(`Thank you, ${formData.name}! Your request has been received. Our team will contact you shortly at ${formData.phone}.`, ['Back to Menu']);
+      setMessages(prev => prev.map(m => m.isForm ? { ...m, isForm: false, text: m.text + ' (Details Submitted)' } : m));
+      addBotMessage(`Thank you, ${formData.name}! Your request has been received. Our team will contact you shortly at ${formData.phone}.`, ['Back to Menu']);
+      setFormData({ name: '', phone: '', extra: '' });
+    } catch (err) {
+      console.error('Failed to send email:', err);
+      // We don't remove the form if it fails, or we can just send an error message from the bot
+      addBotMessage(`Sorry, there was an error sending your request. Please try again or contact us directly.`, ['Back to Menu']);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSend = (e: React.FormEvent) => {
@@ -140,7 +160,13 @@ export default function DemoChatbot({ type, title, initialMessage, options, colo
                 <form onSubmit={(e) => handleFormSubmit(e, msg.formType!)} className="mt-3 space-y-2">
                   <input required type="text" placeholder="Name" className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-xs text-white" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                   <input required type="tel" placeholder="Phone" className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-xs text-white" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                  <button type="submit" className={`w-full bg-gradient-to-r ${color} text-white font-medium py-2 rounded text-xs`}>Submit Request</button>
+                  <button type="submit" disabled={isSubmitting} className={`w-full bg-gradient-to-r ${color} text-white font-medium py-2 rounded text-xs flex justify-center items-center h-8`}>
+                    {isSubmitting ? (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    ) : (
+                      'Submit Request'
+                    )}
+                  </button>
                 </form>
               )}
             </div>
